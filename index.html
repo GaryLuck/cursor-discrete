@@ -97,6 +97,36 @@
       gap: 8px;
       margin-top: 4px;
     }
+    .preset-panels {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .preset-panel {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.02);
+      display: grid;
+      gap: 6px;
+    }
+    .preset-panel .title {
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      text-transform: uppercase;
+    }
+    .preset-panel select {
+      width: 100%;
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 0.85rem;
+    }
     button {
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -235,6 +265,27 @@
         <button class="reset" id="resetBtn">Reset</button>
       </div>
 
+      <div class="preset-panels">
+        <div class="preset-panel">
+          <div class="title">Scenario Preset A</div>
+          <select id="presetASelect">
+            <option value="bankTeller">Bank Teller</option>
+            <option value="supportInbox">Support Inbox</option>
+            <option value="peakHour">Peak Hour</option>
+          </select>
+          <button id="applyPresetABtn">Apply A</button>
+        </div>
+        <div class="preset-panel">
+          <div class="title">Scenario Preset B</div>
+          <select id="presetBSelect">
+            <option value="bankTeller">Bank Teller</option>
+            <option value="supportInbox">Support Inbox</option>
+            <option value="peakHour">Peak Hour</option>
+          </select>
+          <button id="applyPresetBBtn">Apply B</button>
+        </div>
+      </div>
+
       <div class="small">
         Model: G/G/c with discrete event scheduling. Inter-arrival and service times are generated from a gamma distribution parameterized by mean and coefficient of variation (CV).
       </div>
@@ -307,12 +358,40 @@
       const startBtn = document.getElementById("startBtn");
       const pauseBtn = document.getElementById("pauseBtn");
       const resetBtn = document.getElementById("resetBtn");
+      const presetASelect = document.getElementById("presetASelect");
+      const presetBSelect = document.getElementById("presetBSelect");
+      const applyPresetABtn = document.getElementById("applyPresetABtn");
+      const applyPresetBBtn = document.getElementById("applyPresetBBtn");
 
       const queueChart = document.getElementById("queueChart");
       const waitChart = document.getElementById("waitChart");
       const utilChart = document.getElementById("utilChart");
       const throughputChart = document.getElementById("throughputChart");
       const animCanvas = document.getElementById("animCanvas");
+
+      const scenarioPresets = {
+        bankTeller: {
+          arrivalRate: 32,
+          serviceMean: 6.5,
+          servers: 3,
+          arrivalCV: 0.9,
+          serviceCV: 0.8,
+        },
+        supportInbox: {
+          arrivalRate: 68,
+          serviceMean: 4.2,
+          servers: 5,
+          arrivalCV: 1.4,
+          serviceCV: 1.2,
+        },
+        peakHour: {
+          arrivalRate: 120,
+          serviceMean: 5.5,
+          servers: 4,
+          arrivalCV: 1.8,
+          serviceCV: 1.3,
+        },
+      };
 
       function syncLabels() {
         outputs.arrivalRateOut.value = controls.arrivalRate.value;
@@ -321,6 +400,19 @@
         outputs.arrivalCVOut.value = Number(controls.arrivalCV.value).toFixed(1);
         outputs.serviceCVOut.value = Number(controls.serviceCV.value).toFixed(1);
         outputs.speedOut.value = Number(controls.speed.value).toFixed(2) + "x";
+      }
+      function applyScenarioPreset(presetKey) {
+        const preset = scenarioPresets[presetKey];
+        if (!preset) return;
+        controls.arrivalRate.value = String(preset.arrivalRate);
+        controls.serviceMean.value = String(preset.serviceMean);
+        controls.servers.value = String(preset.servers);
+        controls.arrivalCV.value = String(preset.arrivalCV);
+        controls.serviceCV.value = String(preset.serviceCV);
+        syncLabels();
+        updateKpis();
+        drawAllCharts();
+        drawAnimation();
       }
       Object.values(controls).forEach((el) => el.addEventListener("input", syncLabels));
       syncLabels();
@@ -672,6 +764,12 @@
       });
       resetBtn.addEventListener("click", function () {
         resetSimulation();
+      });
+      applyPresetABtn.addEventListener("click", function () {
+        applyScenarioPreset(presetASelect.value);
+      });
+      applyPresetBBtn.addEventListener("click", function () {
+        applyScenarioPreset(presetBSelect.value);
       });
 
       // If server count is reduced below active busy servers, excess jobs complete naturally;
