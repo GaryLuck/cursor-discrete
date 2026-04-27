@@ -1,0 +1,689 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Discrete Event Queue Simulation Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #1f2937;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #22c55e;
+      --accent-2: #60a5fa;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --border: #374151;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at top, #1e293b 0%, var(--bg) 45%);
+      min-height: 100vh;
+    }
+
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 18px;
+      display: grid;
+      gap: 14px;
+      grid-template-columns: 320px 1fr;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0));
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      backdrop-filter: blur(2px);
+    }
+
+    h1, h2, h3 {
+      margin: 0 0 10px 0;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+    h1 { font-size: 1.2rem; }
+    h2 { font-size: 1rem; color: var(--accent-2); }
+    h3 { font-size: 0.95rem; color: var(--muted); }
+
+    .controls {
+      display: grid;
+      gap: 10px;
+      align-content: start;
+      position: sticky;
+      top: 10px;
+      height: fit-content;
+    }
+
+    label {
+      display: grid;
+      gap: 4px;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    input[type="range"], input[type="number"] {
+      width: 100%;
+    }
+
+    .range-row {
+      display: grid;
+      grid-template-columns: 1fr 58px;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .range-row output {
+      font-size: 0.85rem;
+      color: var(--text);
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 3px 6px;
+      text-align: right;
+      min-width: 52px;
+    }
+
+    .btns {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    button {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 8px 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:hover { filter: brightness(1.1); }
+    .start { background: rgba(34, 197, 94, 0.15); border-color: #16a34a; }
+    .pause { background: rgba(245, 158, 11, 0.15); border-color: #d97706; }
+    .reset { background: rgba(239, 68, 68, 0.15); border-color: #dc2626; }
+
+    .main {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(120px, 1fr));
+      gap: 8px;
+    }
+    .kpi {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .kpi .label {
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-bottom: 6px;
+    }
+    .kpi .value {
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+
+    .charts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .chart-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+    }
+    canvas {
+      width: 100%;
+      height: 180px;
+      background: rgba(255,255,255,0.02);
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    #animCanvas {
+      height: 220px;
+    }
+
+    .small {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 6px;
+      line-height: 1.25;
+    }
+
+    @media (max-width: 980px) {
+      .wrap { grid-template-columns: 1fr; }
+      .kpis { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+      .charts { grid-template-columns: 1fr; }
+      .controls { position: static; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <aside class="controls card">
+      <h1>Queue Simulation Controls</h1>
+
+      <label>
+        Arrival Rate (customers/hour)
+        <div class="range-row">
+          <input id="arrivalRate" type="range" min="5" max="240" step="1" value="60" />
+          <output id="arrivalRateOut">60</output>
+        </div>
+      </label>
+
+      <label>
+        Mean Service Time (minutes)
+        <div class="range-row">
+          <input id="serviceMean" type="range" min="1" max="30" step="0.5" value="5" />
+          <output id="serviceMeanOut">5.0</output>
+        </div>
+      </label>
+
+      <label>
+        Number of Resources (servers)
+        <div class="range-row">
+          <input id="servers" type="range" min="1" max="12" step="1" value="3" />
+          <output id="serversOut">3</output>
+        </div>
+      </label>
+
+      <label>
+        Arrival Variability (CV)
+        <div class="range-row">
+          <input id="arrivalCV" type="range" min="0.4" max="2.5" step="0.1" value="1.0" />
+          <output id="arrivalCVOut">1.0</output>
+        </div>
+      </label>
+
+      <label>
+        Service Variability (CV)
+        <div class="range-row">
+          <input id="serviceCV" type="range" min="0.4" max="2.5" step="0.1" value="1.0" />
+          <output id="serviceCVOut">1.0</output>
+        </div>
+      </label>
+
+      <label>
+        Simulation Speed
+        <div class="range-row">
+          <input id="speed" type="range" min="0.25" max="15" step="0.25" value="2" />
+          <output id="speedOut">2.00x</output>
+        </div>
+      </label>
+
+      <div class="btns">
+        <button class="start" id="startBtn">Start</button>
+        <button class="pause" id="pauseBtn">Pause</button>
+        <button class="reset" id="resetBtn">Reset</button>
+      </div>
+
+      <div class="small">
+        Model: G/G/c with discrete event scheduling. Inter-arrival and service times are generated from a gamma distribution parameterized by mean and coefficient of variation (CV).
+      </div>
+    </aside>
+
+    <main class="main">
+      <section class="kpis">
+        <div class="kpi"><div class="label">Queue Length</div><div class="value" id="queueLen">0</div></div>
+        <div class="kpi"><div class="label">Avg Wait (min)</div><div class="value" id="avgWait">0.00</div></div>
+        <div class="kpi"><div class="label">Utilization</div><div class="value" id="util">0.0%</div></div>
+        <div class="kpi"><div class="label">Throughput (/hr)</div><div class="value" id="throughput">0.0</div></div>
+        <div class="kpi"><div class="label">In System</div><div class="value" id="inSystem">0</div></div>
+      </section>
+
+      <section class="charts">
+        <div class="chart-card">
+          <h2>Queue Length Over Time</h2>
+          <canvas id="queueChart" width="520" height="180"></canvas>
+        </div>
+        <div class="chart-card">
+          <h2>Average Wait Over Time (min)</h2>
+          <canvas id="waitChart" width="520" height="180"></canvas>
+        </div>
+        <div class="chart-card">
+          <h2>Utilization Over Time (%)</h2>
+          <canvas id="utilChart" width="520" height="180"></canvas>
+        </div>
+        <div class="chart-card">
+          <h2>Throughput Over Time (/hr)</h2>
+          <canvas id="throughputChart" width="520" height="180"></canvas>
+        </div>
+      </section>
+
+      <section class="chart-card">
+        <h2>Live Queue Animation</h2>
+        <canvas id="animCanvas" width="1080" height="220"></canvas>
+        <div class="small">Blue circles are waiting customers. Green circles are currently being served.</div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    (function () {
+      const controls = {
+        arrivalRate: document.getElementById("arrivalRate"),
+        serviceMean: document.getElementById("serviceMean"),
+        servers: document.getElementById("servers"),
+        arrivalCV: document.getElementById("arrivalCV"),
+        serviceCV: document.getElementById("serviceCV"),
+        speed: document.getElementById("speed"),
+      };
+
+      const outputs = {
+        arrivalRateOut: document.getElementById("arrivalRateOut"),
+        serviceMeanOut: document.getElementById("serviceMeanOut"),
+        serversOut: document.getElementById("serversOut"),
+        arrivalCVOut: document.getElementById("arrivalCVOut"),
+        serviceCVOut: document.getElementById("serviceCVOut"),
+        speedOut: document.getElementById("speedOut"),
+      };
+
+      const kpis = {
+        queueLen: document.getElementById("queueLen"),
+        avgWait: document.getElementById("avgWait"),
+        util: document.getElementById("util"),
+        throughput: document.getElementById("throughput"),
+        inSystem: document.getElementById("inSystem"),
+      };
+
+      const startBtn = document.getElementById("startBtn");
+      const pauseBtn = document.getElementById("pauseBtn");
+      const resetBtn = document.getElementById("resetBtn");
+
+      const queueChart = document.getElementById("queueChart");
+      const waitChart = document.getElementById("waitChart");
+      const utilChart = document.getElementById("utilChart");
+      const throughputChart = document.getElementById("throughputChart");
+      const animCanvas = document.getElementById("animCanvas");
+
+      function syncLabels() {
+        outputs.arrivalRateOut.value = controls.arrivalRate.value;
+        outputs.serviceMeanOut.value = Number(controls.serviceMean.value).toFixed(1);
+        outputs.serversOut.value = controls.servers.value;
+        outputs.arrivalCVOut.value = Number(controls.arrivalCV.value).toFixed(1);
+        outputs.serviceCVOut.value = Number(controls.serviceCV.value).toFixed(1);
+        outputs.speedOut.value = Number(controls.speed.value).toFixed(2) + "x";
+      }
+      Object.values(controls).forEach((el) => el.addEventListener("input", syncLabels));
+      syncLabels();
+
+      // Marsaglia and Tsang gamma sampler for shape >= 1.
+      function gamma(shape) {
+        if (shape < 1) {
+          const u = Math.random();
+          return gamma(shape + 1) * Math.pow(u, 1 / shape);
+        }
+        const d = shape - 1 / 3;
+        const c = 1 / Math.sqrt(9 * d);
+        for (;;) {
+          let x, v, u;
+          do {
+            const u1 = Math.random();
+            const u2 = Math.random();
+            x = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+            v = 1 + c * x;
+          } while (v <= 0);
+          v = v * v * v;
+          u = Math.random();
+          if (u < 1 - 0.0331 * x * x * x * x) return d * v;
+          if (Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v;
+        }
+      }
+
+      // Draw from gamma with given mean and coefficient of variation.
+      function sampleFromMeanCV(mean, cv) {
+        const shape = 1 / (cv * cv);
+        const scale = mean / shape;
+        return Math.max(0.0001, gamma(shape) * scale);
+      }
+
+      const sim = {
+        running: false,
+        t: 0,
+        nextArrival: 0,
+        queue: [],
+        busyServers: [],
+        completed: 0,
+        totalWaitMinutes: 0,
+        totalBusyMinutes: 0,
+        lastEventTime: 0,
+        idCounter: 1,
+        history: {
+          t: [],
+          q: [],
+          w: [],
+          u: [],
+          th: [],
+        },
+      };
+
+      function resetSimulation() {
+        sim.running = false;
+        sim.t = 0;
+        sim.queue = [];
+        sim.busyServers = [];
+        sim.completed = 0;
+        sim.totalWaitMinutes = 0;
+        sim.totalBusyMinutes = 0;
+        sim.lastEventTime = 0;
+        sim.idCounter = 1;
+        sim.history = { t: [], q: [], w: [], u: [], th: [] };
+
+        sim.nextArrival = sim.t + nextInterArrivalMinutes();
+        updateKpis();
+        drawAllCharts();
+        drawAnimation();
+      }
+
+      function getParams() {
+        return {
+          arrivalRate: Number(controls.arrivalRate.value),
+          serviceMean: Number(controls.serviceMean.value),
+          servers: Number(controls.servers.value),
+          arrivalCV: Number(controls.arrivalCV.value),
+          serviceCV: Number(controls.serviceCV.value),
+          speed: Number(controls.speed.value),
+        };
+      }
+
+      function nextInterArrivalMinutes() {
+        const p = getParams();
+        const meanMinutes = 60 / Math.max(0.0001, p.arrivalRate);
+        return sampleFromMeanCV(meanMinutes, p.arrivalCV);
+      }
+      function nextServiceMinutes() {
+        const p = getParams();
+        return sampleFromMeanCV(p.serviceMean, p.serviceCV);
+      }
+
+      function startService(customer) {
+        const now = sim.t;
+        const service = nextServiceMinutes();
+        const end = now + service;
+        sim.busyServers.push({
+          id: customer.id,
+          arrivalTime: customer.arrivalTime,
+          startServiceTime: now,
+          endServiceTime: end,
+        });
+      }
+
+      function processArrival() {
+        const customer = { id: sim.idCounter++, arrivalTime: sim.t };
+        const p = getParams();
+        if (sim.busyServers.length < p.servers) {
+          startService(customer);
+        } else {
+          sim.queue.push(customer);
+        }
+        sim.nextArrival = sim.t + nextInterArrivalMinutes();
+      }
+
+      function processDeparture(serverObj) {
+        sim.completed += 1;
+        const wait = serverObj.startServiceTime - serverObj.arrivalTime;
+        sim.totalWaitMinutes += wait;
+        const idx = sim.busyServers.indexOf(serverObj);
+        if (idx >= 0) sim.busyServers.splice(idx, 1);
+        if (sim.queue.length > 0) {
+          const next = sim.queue.shift();
+          startService(next);
+        }
+      }
+
+      function nextEventTime() {
+        let nextDepart = Infinity;
+        let departingServer = null;
+        for (const s of sim.busyServers) {
+          if (s.endServiceTime < nextDepart) {
+            nextDepart = s.endServiceTime;
+            departingServer = s;
+          }
+        }
+        if (sim.nextArrival <= nextDepart) {
+          return { time: sim.nextArrival, type: "arrival", server: null };
+        }
+        return { time: nextDepart, type: "departure", server: departingServer };
+      }
+
+      function accumulateBusy(deltaMinutes) {
+        sim.totalBusyMinutes += sim.busyServers.length * deltaMinutes;
+      }
+
+      function recordSnapshot() {
+        const p = getParams();
+        const util = sim.t > 0 ? (sim.totalBusyMinutes / (sim.t * p.servers)) * 100 : 0;
+        const avgWait = sim.completed > 0 ? sim.totalWaitMinutes / sim.completed : 0;
+        const throughput = sim.t > 0 ? (sim.completed * 60) / sim.t : 0;
+
+        sim.history.t.push(sim.t);
+        sim.history.q.push(sim.queue.length);
+        sim.history.w.push(avgWait);
+        sim.history.u.push(util);
+        sim.history.th.push(throughput);
+
+        const maxPoints = 300;
+        if (sim.history.t.length > maxPoints) {
+          Object.keys(sim.history).forEach((k) => sim.history[k].shift());
+        }
+      }
+
+      function updateKpis() {
+        const p = getParams();
+        const util = sim.t > 0 ? (sim.totalBusyMinutes / (sim.t * p.servers)) * 100 : 0;
+        const avgWait = sim.completed > 0 ? sim.totalWaitMinutes / sim.completed : 0;
+        const throughput = sim.t > 0 ? (sim.completed * 60) / sim.t : 0;
+        const inSystem = sim.queue.length + sim.busyServers.length;
+
+        kpis.queueLen.textContent = String(sim.queue.length);
+        kpis.avgWait.textContent = avgWait.toFixed(2);
+        kpis.util.textContent = util.toFixed(1) + "%";
+        kpis.throughput.textContent = throughput.toFixed(1);
+        kpis.inSystem.textContent = String(inSystem);
+      }
+
+      function drawLineChart(canvas, yData, color, yLabel) {
+        const ctx = canvas.getContext("2d");
+        const w = canvas.width;
+        const h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+
+        const padL = 42, padR = 8, padT = 10, padB = 24;
+        const iw = w - padL - padR;
+        const ih = h - padT - padB;
+
+        ctx.strokeStyle = "rgba(255,255,255,0.18)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(padL, padT);
+        ctx.lineTo(padL, h - padB);
+        ctx.lineTo(w - padR, h - padB);
+        ctx.stroke();
+
+        if (yData.length < 2) {
+          ctx.fillStyle = "rgba(255,255,255,0.5)";
+          ctx.font = "12px sans-serif";
+          ctx.fillText("Waiting for simulation data...", padL + 10, padT + 20);
+          return;
+        }
+
+        const yMaxRaw = Math.max(...yData);
+        const yMax = yMaxRaw <= 0 ? 1 : yMaxRaw * 1.15;
+        const xN = yData.length - 1;
+
+        ctx.fillStyle = "rgba(255,255,255,0.7)";
+        ctx.font = "11px sans-serif";
+        ctx.fillText(yLabel, 8, 16);
+        ctx.fillText("0", 10, h - padB + 4);
+        ctx.fillText(yMax.toFixed(1), 6, padT + 4);
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i < yData.length; i++) {
+          const x = padL + (i / xN) * iw;
+          const y = h - padB - (yData[i] / yMax) * ih;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+
+      function drawAllCharts() {
+        drawLineChart(queueChart, sim.history.q, "#60a5fa", "Queue");
+        drawLineChart(waitChart, sim.history.w, "#f59e0b", "Min");
+        drawLineChart(utilChart, sim.history.u, "#22c55e", "%");
+        drawLineChart(throughputChart, sim.history.th, "#a78bfa", "/hr");
+      }
+
+      function drawAnimation() {
+        const ctx = animCanvas.getContext("2d");
+        const w = animCanvas.width;
+        const h = animCanvas.height;
+        ctx.clearRect(0, 0, w, h);
+
+        ctx.fillStyle = "rgba(255,255,255,0.03)";
+        ctx.fillRect(0, 0, w, h);
+
+        const laneY = h * 0.6;
+        const queueStartX = 40;
+        const spacing = 26;
+
+        // Queue lane
+        ctx.strokeStyle = "rgba(96, 165, 250, 0.35)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(queueStartX - 20, laneY + 12);
+        ctx.lineTo(w * 0.52, laneY + 12);
+        ctx.stroke();
+
+        // Waiting customers
+        const waitingCount = Math.min(sim.queue.length, 30);
+        for (let i = 0; i < waitingCount; i++) {
+          const x = queueStartX + i * spacing;
+          const y = laneY + (i % 2 === 0 ? -8 : 8);
+          ctx.fillStyle = "#60a5fa";
+          ctx.beginPath();
+          ctx.arc(x, y, 7, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        const p = getParams();
+        const serverCount = p.servers;
+        const serverAreaX = w * 0.58;
+        const serverGap = Math.max(38, (w * 0.38) / Math.max(1, serverCount));
+        const serverY = h * 0.42;
+
+        // Draw server slots
+        for (let i = 0; i < serverCount; i++) {
+          const x = serverAreaX + i * serverGap;
+          ctx.strokeStyle = "rgba(255,255,255,0.2)";
+          ctx.strokeRect(x - 13, serverY - 13, 26, 26);
+          ctx.fillStyle = "rgba(255,255,255,0.6)";
+          ctx.font = "10px sans-serif";
+          ctx.fillText(String(i + 1), x - 3, serverY + 26);
+        }
+
+        // Busy server customers
+        const busy = sim.busyServers.slice(0, serverCount);
+        busy.forEach((s, i) => {
+          const x = serverAreaX + i * serverGap;
+          ctx.fillStyle = "#22c55e";
+          ctx.beginPath();
+          ctx.arc(x, serverY, 8, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Service progress bar
+          const dur = s.endServiceTime - s.startServiceTime;
+          const prog = dur > 0 ? Math.min(1, Math.max(0, (sim.t - s.startServiceTime) / dur)) : 1;
+          ctx.fillStyle = "rgba(255,255,255,0.15)";
+          ctx.fillRect(x - 14, serverY + 15, 28, 4);
+          ctx.fillStyle = "#22c55e";
+          ctx.fillRect(x - 14, serverY + 15, 28 * prog, 4);
+        });
+
+        ctx.fillStyle = "rgba(255,255,255,0.75)";
+        ctx.font = "12px sans-serif";
+        ctx.fillText("Queue", 16, laneY - 18);
+        ctx.fillText("Servers", serverAreaX - 8, serverY - 24);
+      }
+
+      function advanceSimulation(deltaRealMs) {
+        if (!sim.running) return;
+
+        const speed = getParams().speed;
+        let targetAdvance = (deltaRealMs / 1000) * speed; // minutes of simulated time
+        let safety = 0;
+
+        while (targetAdvance > 0 && safety < 1000) {
+          safety++;
+          const ev = nextEventTime();
+          const dtToEvent = ev.time - sim.t;
+
+          if (dtToEvent > targetAdvance) {
+            accumulateBusy(targetAdvance);
+            sim.t += targetAdvance;
+            targetAdvance = 0;
+          } else {
+            accumulateBusy(dtToEvent);
+            sim.t = ev.time;
+            targetAdvance -= dtToEvent;
+            if (ev.type === "arrival") processArrival();
+            else if (ev.server) processDeparture(ev.server);
+            recordSnapshot();
+          }
+        }
+      }
+
+      let lastTs = performance.now();
+      function frame(ts) {
+        const delta = ts - lastTs;
+        lastTs = ts;
+        advanceSimulation(delta);
+        updateKpis();
+        drawAllCharts();
+        drawAnimation();
+        requestAnimationFrame(frame);
+      }
+
+      startBtn.addEventListener("click", function () {
+        sim.running = true;
+      });
+      pauseBtn.addEventListener("click", function () {
+        sim.running = false;
+      });
+      resetBtn.addEventListener("click", function () {
+        resetSimulation();
+      });
+
+      // If server count is reduced below active busy servers, excess jobs complete naturally;
+      // no forced preemption is performed.
+      controls.servers.addEventListener("input", function () {
+        updateKpis();
+        drawAnimation();
+      });
+
+      resetSimulation();
+      requestAnimationFrame(frame);
+    })();
+  </script>
+</body>
+</html>
